@@ -3,7 +3,7 @@
 ![Python](https://img.shields.io/badge/Python-3.12-3776AB?logo=python&logoColor=white)
 ![PySide6](https://img.shields.io/badge/GUI-PySide6%20(Qt6)-41CD52?logo=qt&logoColor=white)
 ![Pandas](https://img.shields.io/badge/Engine-Pandas%20%26%20OpenPyXL-150458?logo=pandas&logoColor=white)
-![Tests](https://img.shields.io/badge/Tests-Pytest%20(100%25%20Passing)-brightgreen?logo=pytest&logoColor=white)
+[![CI](https://github.com/Symon180/DataRecon/actions/workflows/ci.yml/badge.svg)](https://github.com/Symon180/DataRecon/actions/workflows/ci.yml)
 ![License](https://img.shields.io/badge/License-MIT-blue.svg)
 
 **DataRecon** è un'applicazione desktop e motore di automazione in **Python** per la quadratura, riconciliazione e audit di grandi volumi di dati tabellari (**Excel `.xlsx` / `.csv`**).
@@ -99,7 +99,7 @@ pip install -r CODICE/requirements.txt
 ### 3. Avviare l'applicazione
 
 ```bash
-python CODICE/app.py
+python CODICE/app.py   # oppure avvia.sh (Linux) / avvia.bat (Windows)
 ```
 
 Premi il pulsante **"⚡ Prova Dati Esempio"** in alto a destra per vedere immediatamente il software in azione sui dati di prova inclusi!
@@ -111,7 +111,7 @@ Premi il pulsante **"⚡ Prova Dati Esempio"** in alto a destra per vedere immed
 Per eseguire i test unitari automatizzati:
 
 ```bash
-pytest TEST/
+pytest
 ```
 
 I test verificano la gestione di chiavi sporche, soglie di tolleranza su centesimi, rilevamento duplicati ed esportazione Excel.

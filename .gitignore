@@ -26,3 +26,8 @@ DIST/
 # File di sistema
 .DS_Store
 Thumbs.db
+
+# Strumenti per agenti AI (locali)
+.agents/
+AGENTS.md
+HANDOFF*.md

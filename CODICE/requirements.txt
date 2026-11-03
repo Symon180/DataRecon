@@ -2,4 +2,3 @@ pandas
 openpyxl
 PySide6
 pytest
-pyinstaller
