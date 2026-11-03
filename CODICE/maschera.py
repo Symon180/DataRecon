@@ -24,7 +24,10 @@ from PySide6.QtWidgets import (
 from CODICE.lettura import carica_file
 from CODICE.motore import riconcilia_tabelle, RisultatoRiconciliazione
 from CODICE.scrittura import esporta_report_excel
-from CODICE.SVILUPPO.genera_dati_esempio import genera_file_esempio
+from CODICE.SVILUPPO.genera_dati_esempio import genera_file_esempio, genera_csv_casuali
+
+RADICE_PROGETTO = Path(__file__).resolve().parent.parent
+CARTELLA_DATI_ESEMPIO = RADICE_PROGETTO / "DATI_ESEMPIO"
 
 
 STILE_CHIARO = """
@@ -207,10 +210,15 @@ class FinestraPrincipale(QMainWindow):
         self.btn_tema.clicked.connect(self.inverti_tema)
         layout_header.addWidget(self.btn_tema)
 
-        self.btn_dati_esempio = QPushButton("⚡ Prova Dati Esempio")
-        self.btn_dati_esempio.setToolTip("Genera e carica automaticamente due file di prova con anomalie")
+        self.btn_dati_esempio = QPushButton("⚡ Prova Excel")
+        self.btn_dati_esempio.setToolTip("Genera e carica i due file Excel di prova (Fatture vs Incassi)")
         self.btn_dati_esempio.clicked.connect(self.carica_scenario_esempio)
         layout_header.addWidget(self.btn_dati_esempio)
+
+        self.btn_csv_esempio = QPushButton("📄 Prova CSV Casuali")
+        self.btn_csv_esempio.setToolTip("Genera e carica i due file CSV casuali (Fatturato POD vs Distributore)")
+        self.btn_csv_esempio.clicked.connect(self.carica_scenario_csv)
+        layout_header.addWidget(self.btn_csv_esempio)
 
         layout_principale.addLayout(layout_header)
 
@@ -319,12 +327,13 @@ class FinestraPrincipale(QMainWindow):
         self.applica_tema(not self.is_dark)
 
     def apri_selettore_file(self, target: str):
-        cartella_iniziale = "DATI_ESEMPIO" if Path("DATI_ESEMPIO").exists() else ""
+        CARTELLA_DATI_ESEMPIO.mkdir(parents=True, exist_ok=True)
         file_path, _ = QFileDialog.getOpenFileName(
             self,
             f"Seleziona File {target}",
-            cartella_iniziale,
-            "File Tabellari (*.xlsx *.xls *.csv);;Tutti i File (*.*)"
+            str(CARTELLA_DATI_ESEMPIO),
+            "File Tabellari (*.xlsx *.xls *.csv);;Tutti i File (*.*)",
+            options=QFileDialog.Option.DontUseNativeDialog,
         )
         if file_path:
             self.carica_dataframe(Path(file_path), target)
@@ -371,13 +380,23 @@ class FinestraPrincipale(QMainWindow):
             QMessageBox.critical(self, "Errore Caricamento", f"Impossibile leggere il file:\n{e}")
 
     def carica_scenario_esempio(self):
-        file_a, file_b = genera_file_esempio(output_dir="DATI_ESEMPIO")
+        file_a, file_b = genera_file_esempio(output_dir=CARTELLA_DATI_ESEMPIO)
         self.carica_dataframe(file_a, "A")
         self.carica_dataframe(file_b, "B")
         self.combo_chiave_a.setCurrentText("ID_FATTURA")
         self.combo_chiave_b.setCurrentText("RIFERIMENTO")
         self.combo_val_a.setCurrentText("IMPORTO")
         self.combo_val_b.setCurrentText("IMPORTO_INCASSATO")
+        self.esegui_riconciliazione()
+
+    def carica_scenario_csv(self):
+        csv_a, csv_b = genera_csv_casuali(output_dir=CARTELLA_DATI_ESEMPIO)
+        self.carica_dataframe(csv_a, "A")
+        self.carica_dataframe(csv_b, "B")
+        self.combo_chiave_a.setCurrentText("CODICE_POD")
+        self.combo_chiave_b.setCurrentText("POD_DISTRIBUTORE")
+        self.combo_val_a.setCurrentText("IMPORTO_EURO")
+        self.combo_val_b.setCurrentText("TOTALE_ADDEBITATO")
         self.esegui_riconciliazione()
 
     def esegui_riconciliazione(self):
@@ -454,11 +473,14 @@ class FinestraPrincipale(QMainWindow):
         if not self.risultato:
             return
 
+        CARTELLA_DATI_ESEMPIO.mkdir(parents=True, exist_ok=True)
+        percorso_default = str(CARTELLA_DATI_ESEMPIO / "Report_Quadratura_DataRecon.xlsx")
         percorso_salvataggio, _ = QFileDialog.getSaveFileName(
             self,
             "Salva Report Riconciliazione",
-            "Report_Quadratura_DataRecon.xlsx",
-            "File Excel (*.xlsx)"
+            percorso_default,
+            "File Excel (*.xlsx)",
+            options=QFileDialog.Option.DontUseNativeDialog,
         )
         if percorso_salvataggio:
             try:
