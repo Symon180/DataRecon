@@ -18,7 +18,7 @@ from PySide6.QtWidgets import (
     QApplication, QMainWindow, QWidget, QVBoxLayout, QHBoxLayout,
     QLabel, QPushButton, QFileDialog, QComboBox, QDoubleSpinBox,
     QGroupBox, QTableWidget, QTableWidgetItem, QMessageBox, QHeaderView,
-    QFrame
+    QFrame, QTabWidget
 )
 
 from CODICE.lettura import carica_file
@@ -296,15 +296,32 @@ class FinestraPrincipale(QMainWindow):
         self.btn_elabora.clicked.connect(self.esegui_riconciliazione)
         layout_principale.addWidget(self.btn_elabora)
 
-        # 5. Dashboard Risultati
-        box_risultati = QGroupBox("3. Risultato Quadratura e KPI")
+        # 5. Dashboard Risultati con Schede di Dettaglio Righe
+        box_risultati = QGroupBox("3. Risultato Quadratura e Dettaglio Righe Confrontate")
         layout_risultati = QVBoxLayout(box_risultati)
 
-        self.tabella_kpi = QTableWidget(6, 2)
-        self.tabella_kpi.setHorizontalHeaderLabels(["Indicatore di Quadratura", "Valore Rilevato"])
-        self.tabella_kpi.horizontalHeader().setSectionResizeMode(0, QHeaderView.Stretch)
+        self.tabs_risultati = QTabWidget()
+
+        self.tabella_kpi = QTableWidget(6, 3)
+        self.tabella_kpi.setHorizontalHeaderLabels(["Indicatore", "Valore", "Cosa significa"])
+        self.tabella_kpi.horizontalHeader().setSectionResizeMode(0, QHeaderView.ResizeToContents)
         self.tabella_kpi.horizontalHeader().setSectionResizeMode(1, QHeaderView.ResizeToContents)
-        layout_risultati.addWidget(self.tabella_kpi)
+        self.tabella_kpi.horizontalHeader().setSectionResizeMode(2, QHeaderView.Stretch)
+
+        self.tab_discrepanze = QTableWidget()
+        self.tab_solo_a = QTableWidget()
+        self.tab_solo_b = QTableWidget()
+        self.tab_duplicati = QTableWidget()
+        self.tab_match = QTableWidget()
+
+        self.tabs_risultati.addTab(self.tabella_kpi, "📊 Riepilogo KPI")
+        self.tabs_risultati.addTab(self.tab_discrepanze, "⚠️ Discrepanze Importo")
+        self.tabs_risultati.addTab(self.tab_solo_a, "🟠 Solo in File A")
+        self.tabs_risultati.addTab(self.tab_solo_b, "🔵 Solo in File B")
+        self.tabs_risultati.addTab(self.tab_duplicati, "🔁 Duplicati")
+        self.tabs_risultati.addTab(self.tab_match, "✅ Match Perfetti")
+
+        layout_risultati.addWidget(self.tabs_risultati)
 
         # Azione Esporta Excel
         self.btn_esporta = QPushButton("📥 Esporta Report Excel Completo (.xlsx)")
@@ -424,18 +441,70 @@ class FinestraPrincipale(QMainWindow):
         except Exception as e:
             QMessageBox.critical(self, "Errore durante la Quadratura", f"Si è verificato un errore:\n{e}")
 
+    def _popola_tabella_df(self, tabella: QTableWidget, df: pd.DataFrame):
+        tabella.clear()
+        if df is None or df.empty:
+            tabella.setRowCount(1)
+            tabella.setColumnCount(1)
+            tabella.setHorizontalHeaderLabels(["Risultato"])
+            tabella.setItem(0, 0, QTableWidgetItem("Nessun record presente in questa categoria."))
+            tabella.horizontalHeader().setSectionResizeMode(0, QHeaderView.Stretch)
+            return
+
+        tabella.setRowCount(len(df))
+        tabella.setColumnCount(len(df.columns))
+        tabella.setHorizontalHeaderLabels([str(c) for c in df.columns])
+
+        for r_idx, row in enumerate(df.itertuples(index=False)):
+            for c_idx, val in enumerate(row):
+                testo = f"{val:.2f}" if isinstance(val, float) else str(val if pd.notna(val) else "")
+                item = QTableWidgetItem(testo)
+                tabella.setItem(r_idx, c_idx, item)
+
+        tabella.resizeColumnsToContents()
+
     def _aggiorna_tabella_kpi(self):
         if not self.risultato:
             return
 
         kpi = self.risultato.kpi
         dati = [
-            ("Tasso di Quadratura Globale", f"{kpi['percentuale_quadratura']}%", "VERDE" if kpi['percentuale_quadratura'] > 70 else "AMBRA"),
-            ("Match Perfetti (Chiave + Importo)", str(kpi["match_perfetti"]), "VERDE"),
-            ("Discrepanze di Valore Rilevate", str(kpi["discrepanze_valori"]), "AMBRA" if kpi["discrepanze_valori"] > 0 else "VERDE"),
-            ("Record presenti SOLO nel File A", str(kpi["solo_in_a"]), "ROSSO" if kpi["solo_in_a"] > 0 else "VERDE"),
-            ("Record presenti SOLO nel File B", str(kpi["solo_in_b"]), "ROSSO" if kpi["solo_in_b"] > 0 else "VERDE"),
-            ("Totale Scostamento Economico Anomalie", f"€ {kpi['totale_scostamento_anomalie']:.2f}", "ROSSO" if kpi['totale_scostamento_anomalie'] != 0 else "VERDE"),
+            (
+                "Tasso di Quadratura Globale",
+                f"{kpi['percentuale_quadratura']}%",
+                "VERDE" if kpi['percentuale_quadratura'] > 70 else "AMBRA",
+                f"Percentuale di codici del File A ({kpi['match_perfetti']} su {kpi['chiavi_distinte_a']}) che quadrano al 100% col File B"
+            ),
+            (
+                "Match Perfetti (Chiave + Importo)",
+                str(kpi["match_perfetti"]),
+                "VERDE",
+                "Codici trovati in entrambi i file con lo stesso identico importo (vedi scheda '✅ Match Perfetti')"
+            ),
+            (
+                "Discrepanze di Valore Rilevate",
+                str(kpi["discrepanze_valori"]),
+                "AMBRA" if kpi["discrepanze_valori"] > 0 else "VERDE",
+                "Codici trovati in entrambi i file, ma con importo diverso tra File A e File B (vedi scheda '⚠️ Discrepanze')"
+            ),
+            (
+                "Record presenti SOLO nel File A",
+                str(kpi["solo_in_a"]),
+                "ROSSO" if kpi["solo_in_a"] > 0 else "VERDE",
+                "Codici presenti nel File A che NON esistono affatto nel File B (vedi scheda '🟠 Solo in File A')"
+            ),
+            (
+                "Record presenti SOLO nel File B",
+                str(kpi["solo_in_b"]),
+                "ROSSO" if kpi["solo_in_b"] > 0 else "VERDE",
+                "Codici presenti nel File B che NON esistono affatto nel File A (vedi scheda '🔵 Solo in File B')"
+            ),
+            (
+                "Totale Scostamento Economico Anomalie",
+                f"€ {kpi['totale_scostamento_anomalie']:.2f}",
+                "ROSSO" if kpi['totale_scostamento_anomalie'] != 0 else "VERDE",
+                "Somma algebrica delle differenze (Importo B meno Importo A) sulle righe con discrepanza"
+            ),
         ]
 
         # Colori secondo skill grafica (con contrasto garantito sfondo + testo)
@@ -456,7 +525,7 @@ class FinestraPrincipale(QMainWindow):
 
         mode = "dark" if self.is_dark else "light"
 
-        for row_idx, (nome, valore, stato) in enumerate(dati):
+        for row_idx, (nome, valore, stato, spiegazione) in enumerate(dati):
             item_nome = QTableWidgetItem(nome)
             item_val = QTableWidgetItem(valore)
             item_val.setTextAlignment(Qt.AlignCenter)
@@ -466,8 +535,25 @@ class FinestraPrincipale(QMainWindow):
             item_val.setBackground(QBrush(bg))
             item_val.setForeground(QBrush(fg))
 
+            item_spieg = QTableWidgetItem(spiegazione)
+
             self.tabella_kpi.setItem(row_idx, 0, item_nome)
             self.tabella_kpi.setItem(row_idx, 1, item_val)
+            self.tabella_kpi.setItem(row_idx, 2, item_spieg)
+
+        # Popola le schede di dettaglio righe
+        self._popola_tabella_df(self.tab_discrepanze, self.risultato.df_discrepanze)
+        self._popola_tabella_df(self.tab_solo_a, self.risultato.df_solo_a)
+        self._popola_tabella_df(self.tab_solo_b, self.risultato.df_solo_b)
+        df_dup = pd.concat([self.risultato.df_duplicati_a, self.risultato.df_duplicati_b], ignore_index=True)
+        self._popola_tabella_df(self.tab_duplicati, df_dup)
+        self._popola_tabella_df(self.tab_match, self.risultato.df_match)
+
+        self.tabs_risultati.setTabText(1, f"⚠️ Discrepanze ({len(self.risultato.df_discrepanze)})")
+        self.tabs_risultati.setTabText(2, f"🟠 Solo in File A ({len(self.risultato.df_solo_a)})")
+        self.tabs_risultati.setTabText(3, f"🔵 Solo in File B ({len(self.risultato.df_solo_b)})")
+        self.tabs_risultati.setTabText(4, f"🔁 Duplicati ({len(df_dup)})")
+        self.tabs_risultati.setTabText(5, f"✅ Match Perfetti ({len(self.risultato.df_match)})")
 
     def esporta_report(self):
         if not self.risultato:

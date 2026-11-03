@@ -106,13 +106,21 @@ def riconcilia_tabelle(
         maschera_match = scostamento_assoluto <= tolleranza
         maschera_disc = ~maschera_match
 
-        merged["VALORE_A"] = val_a
-        merged["VALORE_B"] = val_b
-        merged["SCOSTAMENTO"] = diff
+        merged["CHIAVE"] = merged["_CHIAVE_NORM"]
+        merged["VALORE_A"] = val_a.round(2)
+        merged["VALORE_B"] = val_b.round(2)
+        merged["DIFFERENZA (B - A)"] = diff.round(2)
         merged["SCOSTAMENTO_ASS"] = scostamento_assoluto
 
-        df_match = merged[maschera_match].drop(columns=["_CHIAVE_NORM", "SCOSTAMENTO_ASS"])
-        df_discrepanze = merged[maschera_disc].drop(columns=["_CHIAVE_NORM", "SCOSTAMENTO_ASS"])
+        colonne_prioritarie = ["CHIAVE", "VALORE_A", "VALORE_B", "DIFFERENZA (B - A)"]
+        altre_colonne = [
+            c for c in merged.columns
+            if c not in colonne_prioritarie + ["_CHIAVE_NORM", "SCOSTAMENTO_ASS"]
+        ]
+        merged_ordinato = merged[colonne_prioritarie + altre_colonne]
+
+        df_match = merged_ordinato[maschera_match].copy()
+        df_discrepanze = merged_ordinato[maschera_disc].copy()
 
         totale_scostamento = float(diff[maschera_disc].sum())
         valore_quadrato = float(val_a[maschera_match].sum())
