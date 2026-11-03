@@ -1,0 +1,28 @@
+# Ambienti virtuali Python
+.venv/
+venv/
+ENV/
+
+# Bytecode e cache Python
+__pycache__/
+*.py[cod]
+*$py.class
+.pytest_cache/
+.ruff_cache/
+.mypy_cache/
+
+# Build e distribuzione
+build/
+dist/
+DIST/
+*.spec
+
+# Dati locali, segreti e screenshot temporanei
+.local/
+.env
+*.local.json
+*.local.toml
+
+# File di sistema
+.DS_Store
+Thumbs.db
