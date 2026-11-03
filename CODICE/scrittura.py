@@ -91,6 +91,7 @@ def esporta_report_excel(risultato: RisultatoRiconciliazione, percorso_output: P
         ("SOLO_IN_A", risultato.df_solo_a, "ED7D31"),            # Arancione
         ("SOLO_IN_B", risultato.df_solo_b, "70AD47"),            # Verde oliva
         ("DUPLICATI_A", risultato.df_duplicati_a, "7030A0"),      # Viola
+        ("DUPLICATI_B", risultato.df_duplicati_b, "7030A0"),      # Viola
         ("MATCH_PERFETTI", risultato.df_match, "385723"),        # Verde scuro
     ]
 

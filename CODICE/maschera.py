@@ -319,10 +319,11 @@ class FinestraPrincipale(QMainWindow):
         self.applica_tema(not self.is_dark)
 
     def apri_selettore_file(self, target: str):
+        cartella_iniziale = "DATI_ESEMPIO" if Path("DATI_ESEMPIO").exists() else ""
         file_path, _ = QFileDialog.getOpenFileName(
             self,
             f"Seleziona File {target}",
-            "",
+            cartella_iniziale,
             "File Tabellari (*.xlsx *.xls *.csv);;Tutti i File (*.*)"
         )
         if file_path:
@@ -340,10 +341,14 @@ class FinestraPrincipale(QMainWindow):
                 self.combo_chiave_a.addItems(list(df.columns))
                 self.combo_val_a.clear()
                 self.combo_val_a.addItems(colonne)
-                # Auto-detect colonna importo
                 for c in df.columns:
-                    if "import" in c.lower() or "tot" in c.lower() or "prezz" in c.lower():
-                        self.combo_val_a.setCurrentText(c)
+                    if any(k in c.lower() for k in ("id", "cod", "pod", "pdr", "rif", "fattur", "chiav")):
+                        self.combo_chiave_a.setCurrentText(c)
+                        break
+                for kw in ("import", "tot", "prezz", "valore", "euro", "consum", "kwh", "smc"):
+                    trovato = next((c for c in df.columns if kw in c.lower()), None)
+                    if trovato:
+                        self.combo_val_a.setCurrentText(trovato)
                         break
             else:
                 self.df_b = df
@@ -353,8 +358,13 @@ class FinestraPrincipale(QMainWindow):
                 self.combo_val_b.clear()
                 self.combo_val_b.addItems(colonne)
                 for c in df.columns:
-                    if "import" in c.lower() or "tot" in c.lower() or "valore" in c.lower():
-                        self.combo_val_b.setCurrentText(c)
+                    if any(k in c.lower() for k in ("id", "cod", "pod", "pdr", "rif", "fattur", "chiav")):
+                        self.combo_chiave_b.setCurrentText(c)
+                        break
+                for kw in ("import", "tot", "prezz", "valore", "euro", "consum", "kwh", "smc"):
+                    trovato = next((c for c in df.columns if kw in c.lower()), None)
+                    if trovato:
+                        self.combo_val_b.setCurrentText(trovato)
                         break
 
         except Exception as e:

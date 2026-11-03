@@ -48,6 +48,12 @@ def cattura():
     pix_dark.save(str(path_dark), "PNG")
     print(f"Salvato screenshot tema scuro in: {path_dark}")
 
+    finestra_light.close()
+    finestra_dark.close()
+    del finestra_light
+    del finestra_dark
+    app.processEvents()
+
 
 if __name__ == "__main__":
     cattura()

@@ -2,20 +2,19 @@
 Motore di riconciliazione e quadratura dati per DataRecon.
 
 Esegue il confronto logico e deterministico tra due tabelle:
-1. Individua record duplicati
-2. Calcola corrispondenze su chiave primaria normalizzata
+1. Individua record duplicati su ciascun file
+2. Calcola corrispondenze su chiave primaria normalizzata (deduplicando per il join 1-a-1)
 3. Identifica righe presenti solo nel primo file (Orfani A)
 4. Identifica righe presenti solo nel secondo file (Orfani B)
-5. Confronta colonne numeriche (es. importi) con soglia di tolleranza
+5. Confronta colonne numeriche (es. importi, consumi kWh) con soglia di tolleranza
 6. Calcola KPI sintetici di quadratura economica e volumetrica
 """
 
-from dataclasses import dataclass, field
+from dataclasses import dataclass
 from typing import Any
-import numpy as np
 import pandas as pd
 
-from CODICE.lettura import prepara_dataframe
+from CODICE.lettura import prepara_dataframe, converti_serie_numerica
 
 
 @dataclass
@@ -46,7 +45,7 @@ def riconcilia_tabelle(
     t_a = prepara_dataframe(df_a, chiave_a)
     t_b = prepara_dataframe(df_b, chiave_b)
 
-    # 2. Controllo duplicati sulla chiave
+    # 2. Controllo duplicati sulla chiave (escludendo chiavi vuote)
     duplicati_mask_a = t_a["_CHIAVE_NORM"].duplicated(keep=False) & (t_a["_CHIAVE_NORM"] != "")
     duplicati_mask_b = t_b["_CHIAVE_NORM"].duplicated(keep=False) & (t_b["_CHIAVE_NORM"] != "")
 
@@ -65,15 +64,10 @@ def riconcilia_tabelle(
     df_solo_a = t_a[t_a["_CHIAVE_NORM"].isin(chiavi_solo_a)].drop(columns=["_CHIAVE_NORM"])
     df_solo_b = t_b[t_b["_CHIAVE_NORM"].isin(chiavi_solo_b)].drop(columns=["_CHIAVE_NORM"])
 
-    # 4. Confronto valori per le chiavi comuni
-    righe_match: list[dict[str, Any]] = []
-    righe_discrepanze: list[dict[str, Any]] = []
+    # 4. Confronto valori 1-a-1 per le chiavi comuni (deduplicato per evitare prodotto cartesiano N*M)
+    comuni_a = t_a[t_a["_CHIAVE_NORM"].isin(chiavi_comuni)].drop_duplicates(subset=["_CHIAVE_NORM"], keep="first")
+    comuni_b = t_b[t_b["_CHIAVE_NORM"].isin(chiavi_comuni)].drop_duplicates(subset=["_CHIAVE_NORM"], keep="first")
 
-    # Selezioniamo le righe non duplicate con chiavi in comune
-    comuni_a = t_a[t_a["_CHIAVE_NORM"].isin(chiavi_comuni)]
-    comuni_b = t_b[t_b["_CHIAVE_NORM"].isin(chiavi_comuni)]
-
-    # Merge sulle chiavi comuni normalizzate
     merged = pd.merge(
         comuni_a,
         comuni_b,
@@ -92,13 +86,20 @@ def riconcilia_tabelle(
     totale_scostamento = 0.0
     valore_quadrato = 0.0
 
-    if ha_valori:
-        col_val_a = f"{colonna_valore_a}_A" if colonna_valore_a in comuni_a.columns and colonna_valore_a in comuni_b.columns else colonna_valore_a
-        col_val_b = f"{colonna_valore_b}_B" if colonna_valore_b in comuni_a.columns and colonna_valore_b in comuni_b.columns else colonna_valore_b
+    if ha_valori and not merged.empty:
+        col_val_a = (
+            f"{colonna_valore_a}_A"
+            if colonna_valore_a in comuni_a.columns and colonna_valore_a in comuni_b.columns
+            else colonna_valore_a
+        )
+        col_val_b = (
+            f"{colonna_valore_b}_B"
+            if colonna_valore_b in comuni_a.columns and colonna_valore_b in comuni_b.columns
+            else colonna_valore_b
+        )
 
-        # Convertiamo a numerico
-        val_a = pd.to_numeric(merged[col_val_a], errors="coerce").fillna(0.0)
-        val_b = pd.to_numeric(merged[col_val_b], errors="coerce").fillna(0.0)
+        val_a = converti_serie_numerica(merged[col_val_a])
+        val_b = converti_serie_numerica(merged[col_val_b])
         diff = (val_b - val_a).round(4)
         scostamento_assoluto = diff.abs()
 
@@ -116,15 +117,15 @@ def riconcilia_tabelle(
         totale_scostamento = float(diff[maschera_disc].sum())
         valore_quadrato = float(val_a[maschera_match].sum())
     else:
-        df_match = merged.drop(columns=["_CHIAVE_NORM"])
+        df_match = merged.drop(columns=["_CHIAVE_NORM"]) if "_CHIAVE_NORM" in merged.columns else merged
         df_discrepanze = pd.DataFrame()
 
     # 5. Calcolo KPI sintetici
-    tot_val_a = float(pd.to_numeric(df_a[colonna_valore_a], errors="coerce").fillna(0).sum()) if colonna_valore_a and colonna_valore_a in df_a.columns else 0.0
-    tot_val_b = float(pd.to_numeric(df_b[colonna_valore_b], errors="coerce").fillna(0).sum()) if colonna_valore_b and colonna_valore_b in df_b.columns else 0.0
+    tot_val_a = float(converti_serie_numerica(df_a[colonna_valore_a]).sum()) if colonna_valore_a and colonna_valore_a in df_a.columns else 0.0
+    tot_val_b = float(converti_serie_numerica(df_b[colonna_valore_b]).sum()) if colonna_valore_b and colonna_valore_b in df_b.columns else 0.0
 
-    totale_righe = len(df_a)
-    percentuale_quadratura = round((len(df_match) / totale_righe * 100), 2) if totale_righe > 0 else 0.0
+    totale_chiavi_a = len(set_a)
+    percentuale_quadratura = round((len(df_match) / totale_chiavi_a * 100), 2) if totale_chiavi_a > 0 else 0.0
 
     kpi = {
         "righe_file_a": len(df_a),
